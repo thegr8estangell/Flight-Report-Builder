@@ -516,7 +516,7 @@ function buildChart(flights, data) {
       },
       scales: {
         x: { ticks: { font: { family: 'Calibri', size: 11 }, maxRotation: 45, maxTicksLimit: 14 }, grid: { display: false } },
-        y: { min: Math.round(Math.min.apply(null, values) * 0.85 / 10000) * 10000, ticks: { font: { family: 'Calibri', size: 11 }, callback: function(v) { return v >= 1000 ? (v / 1000).toFixed(0) + 'K' : v; } }, grid: { color: '#f0f0f0' } }
+        y: { suggestedMin: Math.min.apply(null, values) * 0.9, suggestedMax: Math.max.apply(null, values) * 1.05, ticks: { font: { family: 'Calibri', size: 11 }, callback: function(v) { return v >= 1000 ? (v / 1000).toFixed(0) + 'K' : v; } }, grid: { color: '#f0f0f0' } }
       }
     },
     plugins: [bandPlugin]
@@ -544,7 +544,7 @@ function buildRacePie() {
 var mapMode = 'world';
 var MAP_COLORS = ['#C6002B', '#e03055', '#f06080', '#f899aa', '#fdd0d8', '#C6002B', '#e03055', '#f06080', '#f899aa', '#fdd0d8'];
 var GEO_COORDS = {'united states':[37,-96],'us':[37,-96],'usa':[37,-96],'united kingdom':[55,-3],'uk':[55,-3],'canada':[56,-106],'australia':[-27,134],'germany':[51,10],'france':[46,2],'india':[21,79],'brazil':[-14,-51],'mexico':[24,-102],'japan':[36,138],'spain':[40,-4],'italy':[42,12],'netherlands':[52,5],'sweden':[60,18],'new zealand':[-41,175],'south africa':[-29,25],'nigeria':[9,8],'argentina':[-38,-63],'colombia':[4,-74],'chile':[-36,-71],'ireland':[53,-8],'portugal':[39,-8],'denmark':[56,10],'norway':[61,9],'finland':[62,26],'belgium':[50,4],'austria':[47,14],'switzerland':[47,8],'poland':[52,20],'greece':[39,22],'turkey':[39,35],'russia':[61,105],'china':[35,103],'south korea':[36,128],'indonesia':[-5,120],'singapore':[1,104],'taiwan':[24,121]};
-var CITY_COORDS = {'new york':[40.71,-74.00],'los angeles':[34.05,-118.24],'chicago':[41.87,-87.62],'houston':[29.76,-95.36],'phoenix':[33.44,-112.07],'philadelphia':[39.95,-75.16],'san antonio':[29.42,-98.49],'san diego':[32.71,-117.15],'dallas':[32.77,-96.79],'san jose':[37.33,-121.88],'austin':[30.26,-97.74],'jacksonville':[30.33,-81.65],'fort worth':[32.72,-97.32],'columbus':[39.96,-82.99],'charlotte':[35.22,-80.84],'indianapolis':[39.76,-86.15],'san francisco':[37.77,-122.41],'seattle':[47.60,-122.33],'denver':[39.73,-104.98],'washington':[38.90,-77.03],'washington dc':[38.90,-77.03],'boston':[42.36,-71.05],'miami':[25.77,-80.19],'atlanta':[33.74,-84.38],'minneapolis':[44.97,-93.27],'portland':[45.52,-122.68],'las vegas':[36.17,-115.14],'nashville':[36.17,-86.78],'baltimore':[39.29,-76.61],'new orleans':[29.95,-90.07],'tampa':[27.95,-82.46],'orlando':[28.54,-81.38],'detroit':[42.33,-83.05],'cleveland':[41.49,-81.69],'pittsburgh':[40.44,-79.99],'cincinnati':[39.10,-84.51],'kansas city':[39.09,-94.58],'st. louis':[38.63,-90.20],'milwaukee':[43.04,-87.91],'salt lake city':[40.76,-111.89],'albuquerque':[35.08,-106.65],'tucson':[32.22,-110.97],'fresno':[36.74,-119.77],'sacramento':[38.58,-121.49],'raleigh':[35.78,-78.64],'colorado springs':[38.83,-104.82],'virginia beach':[36.85,-75.98],'oklahoma city':[35.47,-97.52],'el paso':[31.76,-106.48],'richmond':[37.54,-77.43],'louisville':[38.25,-85.76],'memphis':[35.15,-90.05],'new york city':[40.71,-74.00],'nyc':[40.71,-74.00],'la':[34.05,-118.24],'sf':[37.77,-122.41],'dc':[38.90,-77.03]};
+var CITY_COORDS = {'anchorage':[61.21,-149.89],'honolulu':[21.31,-157.86],'fairbanks':[64.84,-147.72],'juneau':[58.30,-134.42],'hawaii':[21.31,-157.86],'alaska':[64.20,-153.00],'new york':[40.71,-74.00],'los angeles':[34.05,-118.24],'chicago':[41.87,-87.62],'houston':[29.76,-95.36],'phoenix':[33.44,-112.07],'philadelphia':[39.95,-75.16],'san antonio':[29.42,-98.49],'san diego':[32.71,-117.15],'dallas':[32.77,-96.79],'san jose':[37.33,-121.88],'austin':[30.26,-97.74],'jacksonville':[30.33,-81.65],'fort worth':[32.72,-97.32],'columbus':[39.96,-82.99],'charlotte':[35.22,-80.84],'indianapolis':[39.76,-86.15],'san francisco':[37.77,-122.41],'seattle':[47.60,-122.33],'denver':[39.73,-104.98],'washington':[38.90,-77.03],'washington dc':[38.90,-77.03],'boston':[42.36,-71.05],'miami':[25.77,-80.19],'atlanta':[33.74,-84.38],'minneapolis':[44.97,-93.27],'portland':[45.52,-122.68],'las vegas':[36.17,-115.14],'nashville':[36.17,-86.78],'baltimore':[39.29,-76.61],'new orleans':[29.95,-90.07],'tampa':[27.95,-82.46],'orlando':[28.54,-81.38],'detroit':[42.33,-83.05],'cleveland':[41.49,-81.69],'pittsburgh':[40.44,-79.99],'cincinnati':[39.10,-84.51],'kansas city':[39.09,-94.58],'st. louis':[38.63,-90.20],'milwaukee':[43.04,-87.91],'salt lake city':[40.76,-111.89],'albuquerque':[35.08,-106.65],'tucson':[32.22,-110.97],'fresno':[36.74,-119.77],'sacramento':[38.58,-121.49],'raleigh':[35.78,-78.64],'colorado springs':[38.83,-104.82],'virginia beach':[36.85,-75.98],'oklahoma city':[35.47,-97.52],'el paso':[31.76,-106.48],'richmond':[37.54,-77.43],'louisville':[38.25,-85.76],'memphis':[35.15,-90.05],'new york city':[40.71,-74.00],'nyc':[40.71,-74.00],'la':[34.05,-118.24],'sf':[37.77,-122.41],'dc':[38.90,-77.03]};
 
 var KNOWN_COUNTRIES = Object.keys(GEO_COORDS);
 
@@ -588,16 +588,46 @@ function buildWorldMap(geos) {
 function buildUSMap(geos) {
   var c = document.getElementById('us-map'); if (!c) return; c.innerHTML = '';
   d3.json('https://cdn.jsdelivr.net/npm/us-atlas@3/states-10m.json').then(function(us) {
-    var w = c.offsetWidth || 700, h = 320;
+    var w = c.offsetWidth || 700, h = 360;
     var svg = d3.select(c).append('svg').attr('width', w).attr('height', h);
-    var proj = d3.geoAlbersUsa().scale(w * 0.85).translate([w / 2, h / 2]);
-    svg.append('g').selectAll('path').data(topojson.feature(us, us.objects.states).features).enter().append('path').attr('d', d3.geoPath().projection(proj)).attr('fill', '#e4e4e4').attr('stroke', '#fff').attr('stroke-width', 1);
-    plotDots(svg, geos, proj, CITY_COORDS);
+    var proj = d3.geoAlbersUsa().scale(w * 0.82).translate([w / 2, h / 2]);
+    var path = d3.geoPath().projection(proj);
+    svg.append('g').selectAll('path').data(topojson.feature(us, us.objects.states).features).enter()
+      .append('path').attr('d', path).attr('fill', '#e4e4e4').attr('stroke', '#fff').attr('stroke-width', 1);
+    geos.forEach(function(g, i) {
+      var k = g.name.toLowerCase().replace(/,.*$/, '').trim();
+      var coords = CITY_COORDS[k];
+      if (!coords) return;
+      var p = proj([coords[1], coords[0]]);
+      // AlbersUsa has inset boxes for AK and HI - handle null projection
+      if (!p) {
+        if (k === 'anchorage' || k === 'alaska' || k === 'fairbanks' || k === 'juneau') {
+          p = [w * 0.17, h * 0.82];
+        } else if (k === 'honolulu' || k === 'hawaii') {
+          p = [w * 0.28, h * 0.88];
+        } else { return; }
+      }
+      var r = 7 + (g.pct / 100) * 14;
+      svg.append('circle').attr('cx', p[0]).attr('cy', p[1]).attr('r', r)
+        .attr('fill', MAP_COLORS[i % MAP_COLORS.length]).attr('opacity', 0.82);
+      svg.append('text').attr('x', p[0] + r + 3).attr('y', p[1] + 4)
+        .attr('font-size', '11px').attr('font-family', 'Calibri').attr('fill', '#101820')
+        .text(g.name + ' (' + g.pct + '%)');
+    });
   }).catch(function() { c.innerHTML = '<div class="placeholder-text">US map unavailable.</div>'; });
 }
 
 // ── GENERATE REPORT ──
 function generateReport() {
+  console.log('csvData length:', csvData.length);
+  console.log('flights:', getFlights());
+  var flights_debug = getFlights();
+  if (flights_debug.length) {
+    var nd = normDate(flights_debug[0].start);
+    console.log('normDate of first flight start:', nd);
+    console.log('first csvData date:', csvData.length ? csvData[0].date : 'EMPTY');
+    console.log('lift result:', calcLift(flights_debug, csvData));
+  }
   var podcastName = gv('podcastName') || 'Podcast Report';
   var rawDate = gv('datePulled');
   var datePulled = rawDate ? new Date(rawDate).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }) : '--';
