@@ -1006,7 +1006,7 @@ function generateReport() {
         <th style="text-align:right;padding:.45rem .7rem;font-size:.66rem;text-transform:uppercase;letter-spacing:.08em;color:var(--gray)">Impressions</th>
       </tr></thead>
       <tbody>${flights.map((f,i)=>`<tr style="border-bottom:1px solid var(--border)"><td style="padding:.45rem .7rem;font-weight:700">Flight ${i+1}</td><td style="padding:.45rem .7rem">${f.start||'—'}</td><td style="padding:.45rem .7rem">${f.end||'—'}</td><td style="padding:.45rem .7rem;text-align:right;font-weight:600">${fmtNum(f.imp)}</td></tr>`).join('')}</tbody>
-    </table></div>`:'}
+    </table></div>`:''}
 
   <div class="section-card">
     <div class="section-title">Audience Demographics</div>
