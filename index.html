@@ -4,9 +4,507 @@
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
 <title>iHeartPodcasts – Flight Performance Report</title>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/topojson/3.0.2/topojson.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js">
+
+// ── SHAREABLE URL ──
+// Compression using CompressionStream API (supported in all modern browsers)
+async function compress(str) {
+  const encoder = new TextEncoder();
+  const data = encoder.encode(str);
+  const cs = new CompressionStream('gzip');
+  const writer = cs.writable.getWriter();
+  writer.write(data);
+  writer.close();
+  const compressed = await new Response(cs.readable).arrayBuffer();
+  const bytes = new Uint8Array(compressed);
+  let binary = '';
+  for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
+  return btoa(binary).replace(/\+/g,'-').replace(/\//g,'_').replace(/=/g,'');
+}
+
+async function decompress(str) {
+  const b64 = str.replace(/-/g,'+').replace(/_/g,'/');
+  const binary = atob(b64);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+  const ds = new DecompressionStream('gzip');
+  const writer = ds.writable.getWriter();
+  writer.write(bytes);
+  writer.close();
+  const decompressed = await new Response(ds.readable).arrayBuffer();
+  return new TextDecoder().decode(decompressed);
+}
+
+function getFormState() {
+  const flights = [];
+  document.querySelectorAll('.flight-entry[id^="flight-"]').forEach(el => {
+    const id = el.id.replace('flight-','');
+    flights.push({
+      start: document.getElementById(`flight-start-${id}`)?.value || '',
+      end: document.getElementById(`flight-end-${id}`)?.value || '',
+      imp: document.getElementById(`flight-imp-${id}`)?.value || ''
+    });
+  });
+  const geos = [];
+  document.querySelectorAll('.flight-entry[id^="geo-"]').forEach(el => {
+    const id = el.id.replace('geo-','');
+    geos.push({
+      name: document.getElementById(`geo-name-${id}`)?.value || '',
+      pct: document.getElementById(`geo-pct-${id}`)?.value || ''
+    });
+  });
+  return {
+    podcastName: getVal('podcastName'),
+    datePulled: getVal('datePulled'),
+    manager: getVal('manager'),
+    totalDownloads: getVal('totalDownloads'),
+    numFlights: getVal('numFlights'),
+    totalImpressions: getVal('totalImpressions'),
+    commitment: getVal('commitment'),
+    notes: getVal('notes'),
+    age1824: getVal('age1824'), age2534: getVal('age2534'), age3544: getVal('age3544'), age4554: getVal('age4554'), age55p: getVal('age55p'),
+    genderMale: getVal('genderMale'), genderFemale: getVal('genderFemale'),
+    inc30: getVal('inc30'), inc3050: getVal('inc3050'), inc5075: getVal('inc5075'), inc75100: getVal('inc75100'), inc100: getVal('inc100'),
+    eduHS: getVal('eduHS'), eduSome: getVal('eduSome'), eduCollege: getVal('eduCollege'), eduPost: getVal('eduPost'),
+    raceWhite: getVal('raceWhite'), raceBlack: getVal('raceBlack'), raceHisp: getVal('raceHisp'), raceAsian: getVal('raceAsian'), raceOther: getVal('raceOther'),
+    polDem: getVal('polDem'), polRep: getVal('polRep'), polOther: getVal('polOther'),
+    flights, geos,
+    csvData: csvData
+  };
+}
+
+function applyFormState(state) {
+  const set = (id, val) => { const el = document.getElementById(id); if(el) el.value = val || ''; };
+  set('podcastName', state.podcastName); set('datePulled', state.datePulled); set('manager', state.manager);
+  set('totalDownloads', state.totalDownloads); set('numFlights', state.numFlights); set('totalImpressions', state.totalImpressions);
+  set('commitment', state.commitment); set('notes', state.notes);
+  set('age1824', state.age1824); set('age2534', state.age2534); set('age3544', state.age3544); set('age4554', state.age4554); set('age55p', state.age55p);
+  set('genderMale', state.genderMale); set('genderFemale', state.genderFemale);
+  set('inc30', state.inc30); set('inc3050', state.inc3050); set('inc5075', state.inc5075); set('inc75100', state.inc75100); set('inc100', state.inc100);
+  set('eduHS', state.eduHS); set('eduSome', state.eduSome); set('eduCollege', state.eduCollege); set('eduPost', state.eduPost);
+  set('raceWhite', state.raceWhite); set('raceBlack', state.raceBlack); set('raceHisp', state.raceHisp); set('raceAsian', state.raceAsian); set('raceOther', state.raceOther);
+  set('polDem', state.polDem); set('polRep', state.polRep); set('polOther', state.polOther);
+
+  // Flights
+  document.getElementById('flights-list').innerHTML = '';
+  flightCount = 0;
+  (state.flights || []).forEach(f => {
+    addFlight();
+    const id = flightCount;
+    const s = document.getElementById(`flight-start-${id}`); if(s) s.value = f.start || '';
+    const e = document.getElementById(`flight-end-${id}`); if(e) e.value = f.end || '';
+    const imp = document.getElementById(`flight-imp-${id}`); if(imp) imp.value = f.imp || '';
+  });
+  if(flightCount === 0) addFlight();
+
+  // Geos
+  document.getElementById('geo-list').innerHTML = '';
+  geoCount = 0;
+  (state.geos || []).forEach(g => {
+    addGeo();
+    const id = geoCount;
+    const n = document.getElementById(`geo-name-${id}`); if(n) n.value = g.name || '';
+    const p = document.getElementById(`geo-pct-${id}`); if(p) p.value = g.pct || '';
+  });
+  if(geoCount === 0) { addGeo(); addGeo(); addGeo(); addGeo(); addGeo(); }
+
+  // Restore CSV data
+  if(state.csvData && state.csvData.length) {
+    csvData = state.csvData;
+    document.getElementById('uploadLabel').textContent = `${csvData.length} rows restored from link`;
+    document.getElementById('uploadSub').textContent = `✓ ${csvData.length} rows loaded`;
+  }
+}
+
+async function copyShareableLink() {
+  const btn = document.getElementById('copyLinkBtn');
+  btn.textContent = '⏳ Generating link...';
+  btn.disabled = true;
+  try {
+    const state = getFormState();
+    const encoded = await compress(JSON.stringify(state));
+    const url = `${window.location.origin}${window.location.pathname}?r=${encoded}`;
+    await navigator.clipboard.writeText(url);
+    btn.textContent = '✓ Link Copied!';
+    btn.style.background = '#2e7d32';
+    setTimeout(() => { btn.textContent = '🔗 Copy Shareable Link'; btn.style.background = '#101820'; btn.disabled = false; }, 2500);
+  } catch(e) {
+    btn.textContent = '🔗 Copy Shareable Link';
+    btn.disabled = false;
+    // Fallback
+    const state = getFormState();
+    const encoded = btoa(encodeURIComponent(JSON.stringify(state)));
+    prompt('Copy this link:', `${window.location.origin}${window.location.pathname}?r=${encoded}`);
+  }
+}
+
+async function loadFromURL() {
+  const params = new URLSearchParams(window.location.search);
+  const r = params.get('r');
+  if (!r) return;
+  try {
+    let json;
+    try {
+      // Try gzip decompression first
+      json = await decompress(r);
+    } catch(e) {
+      // Fallback to old plain encoding
+      json = decodeURIComponent(atob(r));
+    }
+    const state = JSON.parse(json);
+    applyFormState(state);
+    setTimeout(() => {
+      generateReport();
+      document.getElementById('copyLinkBtn').style.display = 'block';
+    }, 200);
+  } catch(e) { console.error('Failed to load report from URL', e); }
+}
+
+// Show copy link button after generating
+const _origGenerate = generateReport;
+generateReport = function() {
+  _origGenerate();
+  document.getElementById('copyLinkBtn').style.display = 'block';
+};
+
+// Auto-load on page ready
+window.addEventListener('load', loadFromURL);
+
+</script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js">
+
+// ── SHAREABLE URL ──
+// Compression using CompressionStream API (supported in all modern browsers)
+async function compress(str) {
+  const encoder = new TextEncoder();
+  const data = encoder.encode(str);
+  const cs = new CompressionStream('gzip');
+  const writer = cs.writable.getWriter();
+  writer.write(data);
+  writer.close();
+  const compressed = await new Response(cs.readable).arrayBuffer();
+  const bytes = new Uint8Array(compressed);
+  let binary = '';
+  for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
+  return btoa(binary).replace(/\+/g,'-').replace(/\//g,'_').replace(/=/g,'');
+}
+
+async function decompress(str) {
+  const b64 = str.replace(/-/g,'+').replace(/_/g,'/');
+  const binary = atob(b64);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+  const ds = new DecompressionStream('gzip');
+  const writer = ds.writable.getWriter();
+  writer.write(bytes);
+  writer.close();
+  const decompressed = await new Response(ds.readable).arrayBuffer();
+  return new TextDecoder().decode(decompressed);
+}
+
+function getFormState() {
+  const flights = [];
+  document.querySelectorAll('.flight-entry[id^="flight-"]').forEach(el => {
+    const id = el.id.replace('flight-','');
+    flights.push({
+      start: document.getElementById(`flight-start-${id}`)?.value || '',
+      end: document.getElementById(`flight-end-${id}`)?.value || '',
+      imp: document.getElementById(`flight-imp-${id}`)?.value || ''
+    });
+  });
+  const geos = [];
+  document.querySelectorAll('.flight-entry[id^="geo-"]').forEach(el => {
+    const id = el.id.replace('geo-','');
+    geos.push({
+      name: document.getElementById(`geo-name-${id}`)?.value || '',
+      pct: document.getElementById(`geo-pct-${id}`)?.value || ''
+    });
+  });
+  return {
+    podcastName: getVal('podcastName'),
+    datePulled: getVal('datePulled'),
+    manager: getVal('manager'),
+    totalDownloads: getVal('totalDownloads'),
+    numFlights: getVal('numFlights'),
+    totalImpressions: getVal('totalImpressions'),
+    commitment: getVal('commitment'),
+    notes: getVal('notes'),
+    age1824: getVal('age1824'), age2534: getVal('age2534'), age3544: getVal('age3544'), age4554: getVal('age4554'), age55p: getVal('age55p'),
+    genderMale: getVal('genderMale'), genderFemale: getVal('genderFemale'),
+    inc30: getVal('inc30'), inc3050: getVal('inc3050'), inc5075: getVal('inc5075'), inc75100: getVal('inc75100'), inc100: getVal('inc100'),
+    eduHS: getVal('eduHS'), eduSome: getVal('eduSome'), eduCollege: getVal('eduCollege'), eduPost: getVal('eduPost'),
+    raceWhite: getVal('raceWhite'), raceBlack: getVal('raceBlack'), raceHisp: getVal('raceHisp'), raceAsian: getVal('raceAsian'), raceOther: getVal('raceOther'),
+    polDem: getVal('polDem'), polRep: getVal('polRep'), polOther: getVal('polOther'),
+    flights, geos,
+    csvData: csvData
+  };
+}
+
+function applyFormState(state) {
+  const set = (id, val) => { const el = document.getElementById(id); if(el) el.value = val || ''; };
+  set('podcastName', state.podcastName); set('datePulled', state.datePulled); set('manager', state.manager);
+  set('totalDownloads', state.totalDownloads); set('numFlights', state.numFlights); set('totalImpressions', state.totalImpressions);
+  set('commitment', state.commitment); set('notes', state.notes);
+  set('age1824', state.age1824); set('age2534', state.age2534); set('age3544', state.age3544); set('age4554', state.age4554); set('age55p', state.age55p);
+  set('genderMale', state.genderMale); set('genderFemale', state.genderFemale);
+  set('inc30', state.inc30); set('inc3050', state.inc3050); set('inc5075', state.inc5075); set('inc75100', state.inc75100); set('inc100', state.inc100);
+  set('eduHS', state.eduHS); set('eduSome', state.eduSome); set('eduCollege', state.eduCollege); set('eduPost', state.eduPost);
+  set('raceWhite', state.raceWhite); set('raceBlack', state.raceBlack); set('raceHisp', state.raceHisp); set('raceAsian', state.raceAsian); set('raceOther', state.raceOther);
+  set('polDem', state.polDem); set('polRep', state.polRep); set('polOther', state.polOther);
+
+  // Flights
+  document.getElementById('flights-list').innerHTML = '';
+  flightCount = 0;
+  (state.flights || []).forEach(f => {
+    addFlight();
+    const id = flightCount;
+    const s = document.getElementById(`flight-start-${id}`); if(s) s.value = f.start || '';
+    const e = document.getElementById(`flight-end-${id}`); if(e) e.value = f.end || '';
+    const imp = document.getElementById(`flight-imp-${id}`); if(imp) imp.value = f.imp || '';
+  });
+  if(flightCount === 0) addFlight();
+
+  // Geos
+  document.getElementById('geo-list').innerHTML = '';
+  geoCount = 0;
+  (state.geos || []).forEach(g => {
+    addGeo();
+    const id = geoCount;
+    const n = document.getElementById(`geo-name-${id}`); if(n) n.value = g.name || '';
+    const p = document.getElementById(`geo-pct-${id}`); if(p) p.value = g.pct || '';
+  });
+  if(geoCount === 0) { addGeo(); addGeo(); addGeo(); addGeo(); addGeo(); }
+
+  // Restore CSV data
+  if(state.csvData && state.csvData.length) {
+    csvData = state.csvData;
+    document.getElementById('uploadLabel').textContent = `${csvData.length} rows restored from link`;
+    document.getElementById('uploadSub').textContent = `✓ ${csvData.length} rows loaded`;
+  }
+}
+
+async function copyShareableLink() {
+  const btn = document.getElementById('copyLinkBtn');
+  btn.textContent = '⏳ Generating link...';
+  btn.disabled = true;
+  try {
+    const state = getFormState();
+    const encoded = await compress(JSON.stringify(state));
+    const url = `${window.location.origin}${window.location.pathname}?r=${encoded}`;
+    await navigator.clipboard.writeText(url);
+    btn.textContent = '✓ Link Copied!';
+    btn.style.background = '#2e7d32';
+    setTimeout(() => { btn.textContent = '🔗 Copy Shareable Link'; btn.style.background = '#101820'; btn.disabled = false; }, 2500);
+  } catch(e) {
+    btn.textContent = '🔗 Copy Shareable Link';
+    btn.disabled = false;
+    // Fallback
+    const state = getFormState();
+    const encoded = btoa(encodeURIComponent(JSON.stringify(state)));
+    prompt('Copy this link:', `${window.location.origin}${window.location.pathname}?r=${encoded}`);
+  }
+}
+
+async function loadFromURL() {
+  const params = new URLSearchParams(window.location.search);
+  const r = params.get('r');
+  if (!r) return;
+  try {
+    let json;
+    try {
+      // Try gzip decompression first
+      json = await decompress(r);
+    } catch(e) {
+      // Fallback to old plain encoding
+      json = decodeURIComponent(atob(r));
+    }
+    const state = JSON.parse(json);
+    applyFormState(state);
+    setTimeout(() => {
+      generateReport();
+      document.getElementById('copyLinkBtn').style.display = 'block';
+    }, 200);
+  } catch(e) { console.error('Failed to load report from URL', e); }
+}
+
+// Show copy link button after generating
+const _origGenerate = generateReport;
+generateReport = function() {
+  _origGenerate();
+  document.getElementById('copyLinkBtn').style.display = 'block';
+};
+
+// Auto-load on page ready
+window.addEventListener('load', loadFromURL);
+
+</script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/topojson/3.0.2/topojson.min.js">
+
+// ── SHAREABLE URL ──
+// Compression using CompressionStream API (supported in all modern browsers)
+async function compress(str) {
+  const encoder = new TextEncoder();
+  const data = encoder.encode(str);
+  const cs = new CompressionStream('gzip');
+  const writer = cs.writable.getWriter();
+  writer.write(data);
+  writer.close();
+  const compressed = await new Response(cs.readable).arrayBuffer();
+  const bytes = new Uint8Array(compressed);
+  let binary = '';
+  for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
+  return btoa(binary).replace(/\+/g,'-').replace(/\//g,'_').replace(/=/g,'');
+}
+
+async function decompress(str) {
+  const b64 = str.replace(/-/g,'+').replace(/_/g,'/');
+  const binary = atob(b64);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+  const ds = new DecompressionStream('gzip');
+  const writer = ds.writable.getWriter();
+  writer.write(bytes);
+  writer.close();
+  const decompressed = await new Response(ds.readable).arrayBuffer();
+  return new TextDecoder().decode(decompressed);
+}
+
+function getFormState() {
+  const flights = [];
+  document.querySelectorAll('.flight-entry[id^="flight-"]').forEach(el => {
+    const id = el.id.replace('flight-','');
+    flights.push({
+      start: document.getElementById(`flight-start-${id}`)?.value || '',
+      end: document.getElementById(`flight-end-${id}`)?.value || '',
+      imp: document.getElementById(`flight-imp-${id}`)?.value || ''
+    });
+  });
+  const geos = [];
+  document.querySelectorAll('.flight-entry[id^="geo-"]').forEach(el => {
+    const id = el.id.replace('geo-','');
+    geos.push({
+      name: document.getElementById(`geo-name-${id}`)?.value || '',
+      pct: document.getElementById(`geo-pct-${id}`)?.value || ''
+    });
+  });
+  return {
+    podcastName: getVal('podcastName'),
+    datePulled: getVal('datePulled'),
+    manager: getVal('manager'),
+    totalDownloads: getVal('totalDownloads'),
+    numFlights: getVal('numFlights'),
+    totalImpressions: getVal('totalImpressions'),
+    commitment: getVal('commitment'),
+    notes: getVal('notes'),
+    age1824: getVal('age1824'), age2534: getVal('age2534'), age3544: getVal('age3544'), age4554: getVal('age4554'), age55p: getVal('age55p'),
+    genderMale: getVal('genderMale'), genderFemale: getVal('genderFemale'),
+    inc30: getVal('inc30'), inc3050: getVal('inc3050'), inc5075: getVal('inc5075'), inc75100: getVal('inc75100'), inc100: getVal('inc100'),
+    eduHS: getVal('eduHS'), eduSome: getVal('eduSome'), eduCollege: getVal('eduCollege'), eduPost: getVal('eduPost'),
+    raceWhite: getVal('raceWhite'), raceBlack: getVal('raceBlack'), raceHisp: getVal('raceHisp'), raceAsian: getVal('raceAsian'), raceOther: getVal('raceOther'),
+    polDem: getVal('polDem'), polRep: getVal('polRep'), polOther: getVal('polOther'),
+    flights, geos,
+    csvData: csvData
+  };
+}
+
+function applyFormState(state) {
+  const set = (id, val) => { const el = document.getElementById(id); if(el) el.value = val || ''; };
+  set('podcastName', state.podcastName); set('datePulled', state.datePulled); set('manager', state.manager);
+  set('totalDownloads', state.totalDownloads); set('numFlights', state.numFlights); set('totalImpressions', state.totalImpressions);
+  set('commitment', state.commitment); set('notes', state.notes);
+  set('age1824', state.age1824); set('age2534', state.age2534); set('age3544', state.age3544); set('age4554', state.age4554); set('age55p', state.age55p);
+  set('genderMale', state.genderMale); set('genderFemale', state.genderFemale);
+  set('inc30', state.inc30); set('inc3050', state.inc3050); set('inc5075', state.inc5075); set('inc75100', state.inc75100); set('inc100', state.inc100);
+  set('eduHS', state.eduHS); set('eduSome', state.eduSome); set('eduCollege', state.eduCollege); set('eduPost', state.eduPost);
+  set('raceWhite', state.raceWhite); set('raceBlack', state.raceBlack); set('raceHisp', state.raceHisp); set('raceAsian', state.raceAsian); set('raceOther', state.raceOther);
+  set('polDem', state.polDem); set('polRep', state.polRep); set('polOther', state.polOther);
+
+  // Flights
+  document.getElementById('flights-list').innerHTML = '';
+  flightCount = 0;
+  (state.flights || []).forEach(f => {
+    addFlight();
+    const id = flightCount;
+    const s = document.getElementById(`flight-start-${id}`); if(s) s.value = f.start || '';
+    const e = document.getElementById(`flight-end-${id}`); if(e) e.value = f.end || '';
+    const imp = document.getElementById(`flight-imp-${id}`); if(imp) imp.value = f.imp || '';
+  });
+  if(flightCount === 0) addFlight();
+
+  // Geos
+  document.getElementById('geo-list').innerHTML = '';
+  geoCount = 0;
+  (state.geos || []).forEach(g => {
+    addGeo();
+    const id = geoCount;
+    const n = document.getElementById(`geo-name-${id}`); if(n) n.value = g.name || '';
+    const p = document.getElementById(`geo-pct-${id}`); if(p) p.value = g.pct || '';
+  });
+  if(geoCount === 0) { addGeo(); addGeo(); addGeo(); addGeo(); addGeo(); }
+
+  // Restore CSV data
+  if(state.csvData && state.csvData.length) {
+    csvData = state.csvData;
+    document.getElementById('uploadLabel').textContent = `${csvData.length} rows restored from link`;
+    document.getElementById('uploadSub').textContent = `✓ ${csvData.length} rows loaded`;
+  }
+}
+
+async function copyShareableLink() {
+  const btn = document.getElementById('copyLinkBtn');
+  btn.textContent = '⏳ Generating link...';
+  btn.disabled = true;
+  try {
+    const state = getFormState();
+    const encoded = await compress(JSON.stringify(state));
+    const url = `${window.location.origin}${window.location.pathname}?r=${encoded}`;
+    await navigator.clipboard.writeText(url);
+    btn.textContent = '✓ Link Copied!';
+    btn.style.background = '#2e7d32';
+    setTimeout(() => { btn.textContent = '🔗 Copy Shareable Link'; btn.style.background = '#101820'; btn.disabled = false; }, 2500);
+  } catch(e) {
+    btn.textContent = '🔗 Copy Shareable Link';
+    btn.disabled = false;
+    // Fallback
+    const state = getFormState();
+    const encoded = btoa(encodeURIComponent(JSON.stringify(state)));
+    prompt('Copy this link:', `${window.location.origin}${window.location.pathname}?r=${encoded}`);
+  }
+}
+
+async function loadFromURL() {
+  const params = new URLSearchParams(window.location.search);
+  const r = params.get('r');
+  if (!r) return;
+  try {
+    let json;
+    try {
+      // Try gzip decompression first
+      json = await decompress(r);
+    } catch(e) {
+      // Fallback to old plain encoding
+      json = decodeURIComponent(atob(r));
+    }
+    const state = JSON.parse(json);
+    applyFormState(state);
+    setTimeout(() => {
+      generateReport();
+      document.getElementById('copyLinkBtn').style.display = 'block';
+    }, 200);
+  } catch(e) { console.error('Failed to load report from URL', e); }
+}
+
+// Show copy link button after generating
+const _origGenerate = generateReport;
+generateReport = function() {
+  _origGenerate();
+  document.getElementById('copyLinkBtn').style.display = 'block';
+};
+
+// Auto-load on page ready
+window.addEventListener('load', loadFromURL);
+
+</script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 body{font-family:'Calibri',Calibri,sans-serif;background:#efefef;color:#101820;font-size:15px}
@@ -215,6 +713,7 @@ textarea{resize:vertical;min-height:72px;line-height:1.5}
   </div>
 
   <button class="btn btn-generate" onclick="generateReport()">⟳ Generate Report</button>
+<button class="btn btn-generate" id="copyLinkBtn" onclick="copyShareableLink()" style="background:#101820;margin-top:.5rem;display:none">🔗 Copy Shareable Link</button>
 </aside>
 
 <!-- REPORT -->
@@ -616,6 +1115,172 @@ function generateReport() {
     else buildUSMap(geos);
   },80);
 }
+
+
+// ── SHAREABLE URL ──
+// Compression using CompressionStream API (supported in all modern browsers)
+async function compress(str) {
+  const encoder = new TextEncoder();
+  const data = encoder.encode(str);
+  const cs = new CompressionStream('gzip');
+  const writer = cs.writable.getWriter();
+  writer.write(data);
+  writer.close();
+  const compressed = await new Response(cs.readable).arrayBuffer();
+  const bytes = new Uint8Array(compressed);
+  let binary = '';
+  for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
+  return btoa(binary).replace(/\+/g,'-').replace(/\//g,'_').replace(/=/g,'');
+}
+
+async function decompress(str) {
+  const b64 = str.replace(/-/g,'+').replace(/_/g,'/');
+  const binary = atob(b64);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+  const ds = new DecompressionStream('gzip');
+  const writer = ds.writable.getWriter();
+  writer.write(bytes);
+  writer.close();
+  const decompressed = await new Response(ds.readable).arrayBuffer();
+  return new TextDecoder().decode(decompressed);
+}
+
+function getFormState() {
+  const flights = [];
+  document.querySelectorAll('.flight-entry[id^="flight-"]').forEach(el => {
+    const id = el.id.replace('flight-','');
+    flights.push({
+      start: document.getElementById(`flight-start-${id}`)?.value || '',
+      end: document.getElementById(`flight-end-${id}`)?.value || '',
+      imp: document.getElementById(`flight-imp-${id}`)?.value || ''
+    });
+  });
+  const geos = [];
+  document.querySelectorAll('.flight-entry[id^="geo-"]').forEach(el => {
+    const id = el.id.replace('geo-','');
+    geos.push({
+      name: document.getElementById(`geo-name-${id}`)?.value || '',
+      pct: document.getElementById(`geo-pct-${id}`)?.value || ''
+    });
+  });
+  return {
+    podcastName: getVal('podcastName'),
+    datePulled: getVal('datePulled'),
+    manager: getVal('manager'),
+    totalDownloads: getVal('totalDownloads'),
+    numFlights: getVal('numFlights'),
+    totalImpressions: getVal('totalImpressions'),
+    commitment: getVal('commitment'),
+    notes: getVal('notes'),
+    age1824: getVal('age1824'), age2534: getVal('age2534'), age3544: getVal('age3544'), age4554: getVal('age4554'), age55p: getVal('age55p'),
+    genderMale: getVal('genderMale'), genderFemale: getVal('genderFemale'),
+    inc30: getVal('inc30'), inc3050: getVal('inc3050'), inc5075: getVal('inc5075'), inc75100: getVal('inc75100'), inc100: getVal('inc100'),
+    eduHS: getVal('eduHS'), eduSome: getVal('eduSome'), eduCollege: getVal('eduCollege'), eduPost: getVal('eduPost'),
+    raceWhite: getVal('raceWhite'), raceBlack: getVal('raceBlack'), raceHisp: getVal('raceHisp'), raceAsian: getVal('raceAsian'), raceOther: getVal('raceOther'),
+    polDem: getVal('polDem'), polRep: getVal('polRep'), polOther: getVal('polOther'),
+    flights, geos,
+    csvData: csvData
+  };
+}
+
+function applyFormState(state) {
+  const set = (id, val) => { const el = document.getElementById(id); if(el) el.value = val || ''; };
+  set('podcastName', state.podcastName); set('datePulled', state.datePulled); set('manager', state.manager);
+  set('totalDownloads', state.totalDownloads); set('numFlights', state.numFlights); set('totalImpressions', state.totalImpressions);
+  set('commitment', state.commitment); set('notes', state.notes);
+  set('age1824', state.age1824); set('age2534', state.age2534); set('age3544', state.age3544); set('age4554', state.age4554); set('age55p', state.age55p);
+  set('genderMale', state.genderMale); set('genderFemale', state.genderFemale);
+  set('inc30', state.inc30); set('inc3050', state.inc3050); set('inc5075', state.inc5075); set('inc75100', state.inc75100); set('inc100', state.inc100);
+  set('eduHS', state.eduHS); set('eduSome', state.eduSome); set('eduCollege', state.eduCollege); set('eduPost', state.eduPost);
+  set('raceWhite', state.raceWhite); set('raceBlack', state.raceBlack); set('raceHisp', state.raceHisp); set('raceAsian', state.raceAsian); set('raceOther', state.raceOther);
+  set('polDem', state.polDem); set('polRep', state.polRep); set('polOther', state.polOther);
+
+  // Flights
+  document.getElementById('flights-list').innerHTML = '';
+  flightCount = 0;
+  (state.flights || []).forEach(f => {
+    addFlight();
+    const id = flightCount;
+    const s = document.getElementById(`flight-start-${id}`); if(s) s.value = f.start || '';
+    const e = document.getElementById(`flight-end-${id}`); if(e) e.value = f.end || '';
+    const imp = document.getElementById(`flight-imp-${id}`); if(imp) imp.value = f.imp || '';
+  });
+  if(flightCount === 0) addFlight();
+
+  // Geos
+  document.getElementById('geo-list').innerHTML = '';
+  geoCount = 0;
+  (state.geos || []).forEach(g => {
+    addGeo();
+    const id = geoCount;
+    const n = document.getElementById(`geo-name-${id}`); if(n) n.value = g.name || '';
+    const p = document.getElementById(`geo-pct-${id}`); if(p) p.value = g.pct || '';
+  });
+  if(geoCount === 0) { addGeo(); addGeo(); addGeo(); addGeo(); addGeo(); }
+
+  // Restore CSV data
+  if(state.csvData && state.csvData.length) {
+    csvData = state.csvData;
+    document.getElementById('uploadLabel').textContent = `${csvData.length} rows restored from link`;
+    document.getElementById('uploadSub').textContent = `✓ ${csvData.length} rows loaded`;
+  }
+}
+
+async function copyShareableLink() {
+  const btn = document.getElementById('copyLinkBtn');
+  btn.textContent = '⏳ Generating link...';
+  btn.disabled = true;
+  try {
+    const state = getFormState();
+    const encoded = await compress(JSON.stringify(state));
+    const url = `${window.location.origin}${window.location.pathname}?r=${encoded}`;
+    await navigator.clipboard.writeText(url);
+    btn.textContent = '✓ Link Copied!';
+    btn.style.background = '#2e7d32';
+    setTimeout(() => { btn.textContent = '🔗 Copy Shareable Link'; btn.style.background = '#101820'; btn.disabled = false; }, 2500);
+  } catch(e) {
+    btn.textContent = '🔗 Copy Shareable Link';
+    btn.disabled = false;
+    // Fallback
+    const state = getFormState();
+    const encoded = btoa(encodeURIComponent(JSON.stringify(state)));
+    prompt('Copy this link:', `${window.location.origin}${window.location.pathname}?r=${encoded}`);
+  }
+}
+
+async function loadFromURL() {
+  const params = new URLSearchParams(window.location.search);
+  const r = params.get('r');
+  if (!r) return;
+  try {
+    let json;
+    try {
+      // Try gzip decompression first
+      json = await decompress(r);
+    } catch(e) {
+      // Fallback to old plain encoding
+      json = decodeURIComponent(atob(r));
+    }
+    const state = JSON.parse(json);
+    applyFormState(state);
+    setTimeout(() => {
+      generateReport();
+      document.getElementById('copyLinkBtn').style.display = 'block';
+    }, 200);
+  } catch(e) { console.error('Failed to load report from URL', e); }
+}
+
+// Show copy link button after generating
+const _origGenerate = generateReport;
+generateReport = function() {
+  _origGenerate();
+  document.getElementById('copyLinkBtn').style.display = 'block';
+};
+
+// Auto-load on page ready
+window.addEventListener('load', loadFromURL);
+
 </script>
 </body>
 </html>
