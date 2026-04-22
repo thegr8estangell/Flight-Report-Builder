@@ -315,6 +315,15 @@ function handleCSV(e) {
       if (isNaN(dl)) continue;
       csvData.push({ date: cols[dateIdx], downloads: dl });
     }
+    // Normalize dates to YYYY-MM-DD for consistent parsing
+    csvData = csvData.map(function(d) {
+      var dt = new Date(d.date);
+      if (!isNaN(dt)) {
+        var normalized = dt.getFullYear() + '-' + String(dt.getMonth()+1).padStart(2,'0') + '-' + String(dt.getDate()).padStart(2,'0');
+        return { date: normalized, downloads: d.downloads };
+      }
+      return d;
+    });
     csvData.sort(function(a,b) { return new Date(a.date) - new Date(b.date); });
     document.getElementById('uploadSub').textContent = csvData.length + ' rows loaded';
   };
@@ -402,21 +411,78 @@ function buildChart(flights, data) {
   if (!ctx) return;
   if (downloadChart) { downloadChart.destroy(); downloadChart = null; }
   if (!data.length) { ctx.parentElement.innerHTML = '<div class="placeholder-text">Upload a CSV to see the chart.</div>'; return; }
+
+  var labels = data.map(function(d) { return d.date; });
+  var values = data.map(function(d) { return d.downloads; });
+
+  // Build flight band datasets (one shaded dataset per flight)
+  var datasets = [{ label: 'Downloads', data: values, borderColor: '#C6002B', backgroundColor: 'rgba(198,0,43,0.07)', borderWidth: 2.5, tension: 0.35, fill: true, pointRadius: 2, pointBackgroundColor: '#C6002B', order: 1 }];
+
+  // Add a vertical line annotation manually via afterDraw plugin
+  var flightRanges = [];
+  flights.forEach(function(f) {
+    if (!f.start || !f.end) return;
+    var si = labels.indexOf(f.start);
+    var ei = labels.indexOf(f.end);
+    // Try finding closest dates if exact match not found
+    if (si === -1) {
+      for (var i = 0; i < labels.length; i++) { if (labels[i] >= f.start) { si = i; break; } }
+    }
+    if (ei === -1) {
+      for (var i = labels.length-1; i >= 0; i--) { if (labels[i] <= f.end) { ei = i; break; } }
+    }
+    if (si >= 0 && ei >= 0) flightRanges.push({ si: si, ei: ei });
+  });
+
+  var flightBandPlugin = {
+    id: 'flightBands',
+    afterDraw: function(chart) {
+      var ctx2 = chart.ctx;
+      var xScale = chart.scales.x;
+      var yScale = chart.scales.y;
+      if (!xScale || !yScale) return;
+      flightRanges.forEach(function(range, idx) {
+        var x1 = xScale.getPixelForIndex(range.si);
+        var x2 = xScale.getPixelForIndex(range.ei);
+        var top = yScale.top;
+        var bottom = yScale.bottom;
+        // Shaded band
+        ctx2.save();
+        ctx2.fillStyle = 'rgba(198,0,43,0.10)';
+        ctx2.fillRect(x1, top, x2 - x1, bottom - top);
+        // Start line
+        ctx2.strokeStyle = '#C6002B';
+        ctx2.lineWidth = 2;
+        ctx2.setLineDash([4,3]);
+        ctx2.beginPath(); ctx2.moveTo(x1, top); ctx2.lineTo(x1, bottom); ctx2.stroke();
+        // End line
+        ctx2.beginPath(); ctx2.moveTo(x2, top); ctx2.lineTo(x2, bottom); ctx2.stroke();
+        // Label
+        ctx2.setLineDash([]);
+        ctx2.fillStyle = '#C6002B';
+        ctx2.font = 'bold 10px Calibri';
+        ctx2.fillText('Flight ' + (idx+1), x1 + 4, top + 12);
+        ctx2.restore();
+      });
+    }
+  };
+
   downloadChart = new Chart(ctx, {
     type: 'line',
-    data: {
-      labels: data.map(function(d) { return d.date; }),
-      datasets: [{ label: 'Downloads', data: data.map(function(d) { return d.downloads; }), borderColor: '#C6002B', backgroundColor: 'rgba(198,0,43,0.07)', borderWidth: 2.5, tension: 0.35, fill: true, pointRadius: 2, pointBackgroundColor: '#C6002B' }]
-    },
+    data: { labels: labels, datasets: datasets },
     options: {
       responsive: true,
       interaction: { mode: 'index', intersect: false },
-      plugins: { legend: { display: false }, tooltip: { callbacks: { label: function(c) { return 'Downloads: ' + c.parsed.y.toLocaleString(); } } } },
+      plugins: {
+        legend: { display: false },
+        tooltip: { callbacks: { label: function(c) { return 'Downloads: ' + c.parsed.y.toLocaleString(); } } }
+      },
       scales: {
         x: { ticks: { font: { family: 'Calibri', size: 11 }, maxRotation: 45, maxTicksLimit: 14 }, grid: { display: false } },
         y: { ticks: { font: { family: 'Calibri', size: 11 }, callback: function(v) { return v >= 1000 ? (v/1000).toFixed(0)+'K' : v; } }, grid: { color: '#f0f0f0' } }
       }
-    }
+    },
+    plugins: [flightBandPlugin]
   });
 }
 
