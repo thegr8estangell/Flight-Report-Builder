@@ -382,13 +382,16 @@ function getGeos() {
 // Convert YYYY-MM-DD picker value to local date string safely
 function normDate(str) {
   if (!str) return null;
-  // Date picker gives YYYY-MM-DD - parse as local
-  var parts = str.split('-');
-  if (parts.length !== 3) return null;
-  var y = parseInt(parts[0]), m = parseInt(parts[1]) - 1, d = parseInt(parts[2]);
-  var dt = new Date(y, m, d);
-  var yy = dt.getFullYear(), mm = dt.getMonth() + 1, dd = dt.getDate();
-  return yy + '-' + (mm < 10 ? '0' : '') + mm + '-' + (dd < 10 ? '0' : '') + dd;
+  str = str.trim();
+  // Already YYYY-MM-DD format (from date picker)
+  if (/^\d{4}-\d{2}-\d{2}$/.test(str)) return str;
+  // M/D/YYYY format
+  var parts = str.split('/');
+  if (parts.length === 3) {
+    var m = parseInt(parts[0]), d = parseInt(parts[1]), y = parseInt(parts[2]);
+    return y + '-' + (m < 10 ? '0' : '') + m + '-' + (d < 10 ? '0' : '') + d;
+  }
+  return null;
 }
 
 function addDays(ymd, days) {
@@ -435,7 +438,9 @@ var downloadChart = null, racePie = null;
 function buildChart(flights, data) {
   var ctx = document.getElementById('downloadChart');
   if (!ctx) return;
-  if (downloadChart) { downloadChart.destroy(); downloadChart = null; }
+  var existingChart = Chart.getChart(ctx);
+  if (existingChart) existingChart.destroy();
+  if (downloadChart) { try { downloadChart.destroy(); } catch(e) {} downloadChart = null; }
   if (!data.length) {
     ctx.parentElement.innerHTML = '<div class="placeholder-text">Upload a CSV to see the chart.</div>';
     return;
@@ -511,7 +516,7 @@ function buildChart(flights, data) {
       },
       scales: {
         x: { ticks: { font: { family: 'Calibri', size: 11 }, maxRotation: 45, maxTicksLimit: 14 }, grid: { display: false } },
-        y: { ticks: { font: { family: 'Calibri', size: 11 }, callback: function(v) { return v >= 1000 ? (v / 1000).toFixed(0) + 'K' : v; } }, grid: { color: '#f0f0f0' } }
+        y: { min: Math.round(Math.min.apply(null, values) * 0.85 / 10000) * 10000, ticks: { font: { family: 'Calibri', size: 11 }, callback: function(v) { return v >= 1000 ? (v / 1000).toFixed(0) + 'K' : v; } }, grid: { color: '#f0f0f0' } }
       }
     },
     plugins: [bandPlugin]
@@ -520,12 +525,11 @@ function buildChart(flights, data) {
 
 function buildRacePie() {
   var ctx = document.getElementById('racePie');
-  if (!ctx) {
-    // Canvas not ready yet, retry
-    setTimeout(buildRacePie, 100);
-    return;
-  }
-  if (racePie) { racePie.destroy(); racePie = null; }
+  if (!ctx) { setTimeout(buildRacePie, 200); return; }
+  // Destroy any existing chart on this canvas
+  var existing = Chart.getChart(ctx);
+  if (existing) existing.destroy();
+  if (racePie) { try { racePie.destroy(); } catch(e) {} racePie = null; }
   racePie = new Chart(ctx, {
     type: 'doughnut',
     data: {
@@ -586,7 +590,7 @@ function buildUSMap(geos) {
   d3.json('https://cdn.jsdelivr.net/npm/us-atlas@3/states-10m.json').then(function(us) {
     var w = c.offsetWidth || 700, h = 320;
     var svg = d3.select(c).append('svg').attr('width', w).attr('height', h);
-    var proj = d3.geoAlbersUsa().scale(w * 1.15).translate([w / 2, h / 2]);
+    var proj = d3.geoAlbersUsa().scale(w * 0.85).translate([w / 2, h / 2]);
     svg.append('g').selectAll('path').data(topojson.feature(us, us.objects.states).features).enter().append('path').attr('d', d3.geoPath().projection(proj)).attr('fill', '#e4e4e4').attr('stroke', '#fff').attr('stroke-width', 1);
     plotDots(svg, geos, proj, CITY_COORDS);
   }).catch(function() { c.innerHTML = '<div class="placeholder-text">US map unavailable.</div>'; });
